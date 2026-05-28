@@ -3,6 +3,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
     using nvidiaProfileInspector;
     using nvidiaProfileInspector.Common;
     using nvidiaProfileInspector.Common.Helper;
+    using nvidiaProfileInspector.Common.Meta;
     using nvidiaProfileInspector.Common.Updates;
     using nvidiaProfileInspector.Native.NVAPI2;
     using nvidiaProfileInspector.Native.WINAPI;
@@ -689,8 +690,8 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 return;
             }
 
-            var meta = _metaService.GetSettingMeta(_selectedSetting.SettingId, GetSettingViewMode());
-            var description = DlssHelper.ReplaceDlssVersions(meta?.Description ?? "");
+            var description = _metaService.GetDescription(_selectedSetting.SettingId);
+            description = DlssHelper.ReplaceDlssVersions(description ?? "");
             if (!string.IsNullOrEmpty(_selectedSetting.AlternateNames))
                 description = $"Alternate names: {_selectedSetting.AlternateNames}\r\n{description}";
 
@@ -706,11 +707,9 @@ namespace nvidiaProfileInspector.UI.ViewModels
             if (item == null)
                 return true;
 
-            var settingMeta = _metaService.GetSettingMeta(item.SettingId, GetSettingViewMode());
-            var settingType = settingMeta?.SettingType;
-
-            if (settingType == NVDRS_SETTING_TYPE.NVDRS_DWORD_TYPE)
+            if (item.DwordValues != null)
             {
+                var settingMeta = new SettingMeta { DwordValues = item.DwordValues };
                 if (DrsUtil.TryParseDwordSettingValue(settingMeta, item.SelectedValue, out _))
                     return true;
 
@@ -718,8 +717,19 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 return false;
             }
 
-            if (settingType == NVDRS_SETTING_TYPE.NVDRS_BINARY_TYPE)
+            if (item.QwordValues != null)
             {
+                var settingMeta = new SettingMeta { QwordValues = item.QwordValues };
+                if (DrsUtil.TryParseQwordSettingValue(settingMeta, item.SelectedValue, out _))
+                    return true;
+
+                errorMessage = "Enter a valid QWORD value.";
+                return false;
+            }
+
+            if (item.BinaryValues != null)
+            {
+                var settingMeta = new SettingMeta { BinaryValues = item.BinaryValues };
                 if (DrsUtil.ParseBinarySettingValue(settingMeta, item.SelectedValue) != null)
                     return true;
 
@@ -817,6 +827,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 var vm = new SettingItemViewModel(item);
                 var meta = _metaService.GetSettingMeta(item.SettingId, GetSettingViewMode());
                 vm.DwordValues = meta?.DwordValues;
+                vm.QwordValues = meta?.QwordValues;
                 vm.StringValues = meta?.StringValues;
                 vm.BinaryValues = meta?.BinaryValues;
                 tempSettings.Add(vm);

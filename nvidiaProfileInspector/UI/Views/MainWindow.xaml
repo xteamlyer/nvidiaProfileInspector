@@ -23,6 +23,52 @@
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
 
+    <Window.Resources>
+        <DataTemplate x:Key="SharedValueEditorItemTemplate">
+            <StackPanel Orientation="Horizontal">
+                <Path
+                    Width="12"
+                    Height="12"
+                    Margin="0,0,8,0"
+                    Data="{Binding Source, Converter={StaticResource SettingMetaSourceToIconConverter}, Mode=OneWay}"
+                    Fill="{DynamicResource TextSecondaryBrush}"
+                    Stretch="Uniform" />
+                <TextBlock
+                    Text="{Binding ValueName, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+            </StackPanel>
+        </DataTemplate>
+
+        <controls:SearchableComboBox x:Key="SharedValueEditorResource"
+                                     Padding="8,4"
+                                     HorizontalAlignment="Stretch"
+                                     Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
+                                     behaviors:SettingValueValidationBehavior.Enabled="True"
+                                     Cursor=""
+                                     DeferSelectionUntilCommit="True"
+                                     IsEditable="True"
+                                     ItemsSource="{Binding ValueNameItems, Mode=OneWay}"
+                                     MaxDropDownHeight="400"
+                                     Placeholder="Search values..."
+                                     PreserveSelectionOnKeyboardFocus="True"
+                                     SyncSelectedItemToText="False"
+                                     Text="{Binding SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Validation.ErrorTemplate="{x:Null}"
+                                     ItemTemplate="{StaticResource SharedValueEditorItemTemplate}">
+            <controls:SearchableComboBox.Style>
+                <Style TargetType="controls:SearchableComboBox" BasedOn="{StaticResource {x:Type controls:SearchableComboBox}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsModified}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Setter Property="FontWeight" Value="Bold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </controls:SearchableComboBox.Style>
+        </controls:SearchableComboBox>
+    </Window.Resources>
+
 
     <Window.InputBindings>
         <KeyBinding
@@ -1180,16 +1226,43 @@
                     </Grid>
 
                     <!--  Settings ListView  -->
-                    <ListView
-                        x:Name="SettingsListView"
-                        Grid.Row="1"
-                        behaviors:GridViewColumnResizeBehavior.EnableStarSizing="True"
-                        behaviors:ScrollIntoViewForListView.Enable="{Binding ScrollIntoViewEnabled}"
-                        ItemsSource="{Binding GroupedSettingsView}"
-                        SelectedItem="{Binding SelectedSetting}"
-                        Style="{StaticResource DarkListViewStyle}">
-                        <ListView.ItemContainerStyle>
-                            <Style BasedOn="{StaticResource DarkListViewItemStyle}" TargetType="ListViewItem">
+                    <Grid Grid.Row="1">
+                        <ListBox
+                            x:Name="SettingsListView"
+                            behaviors:GridViewColumnResizeBehavior.EnableStarSizing="True"
+                            behaviors:GridViewColumnResizeBehavior.HexColumnWidth="200"
+                            behaviors:GridViewColumnResizeBehavior.SettingColumnMinWidth="320"
+                            behaviors:GridViewColumnResizeBehavior.SettingColumnStarWidth="1"
+                            behaviors:GridViewColumnResizeBehavior.ValueColumnMinWidth="320"
+                            behaviors:GridViewColumnResizeBehavior.ValueColumnStarWidth="1"
+                            behaviors:ScrollIntoViewForListView.Enable="{Binding ScrollIntoViewEnabled}"
+                            ItemsSource="{Binding GroupedSettingsView}"
+                            SelectedItem="{Binding SelectedSetting}"
+                            ScrollViewer.CanContentScroll="True"
+                            VirtualizingPanel.CacheLengthUnit="Item"
+                            VirtualizingPanel.IsVirtualizing="True"
+                            VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                            VirtualizingPanel.ScrollUnit="Pixel"
+                            VirtualizingPanel.VirtualizationMode="Recycling"
+                            Style="{StaticResource SettingsListBoxStyle}">
+                        <VirtualizingPanel.CacheLength>
+                            <MultiBinding Converter="{StaticResource SettingsFilterToCacheLengthConverter}">
+                                <Binding Path="FilterTypeIndex" />
+                                <Binding Path="Settings.Count" />
+                            </MultiBinding>
+                        </VirtualizingPanel.CacheLength>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel
+                                    IsItemsHost="True"
+                                    VirtualizingPanel.IsVirtualizing="True"
+                                    VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                    VirtualizingPanel.ScrollUnit="Pixel"
+                                    VirtualizingPanel.VirtualizationMode="Recycling" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style BasedOn="{StaticResource SettingsListBoxItemStyle}" TargetType="ListBoxItem">
                                 <Setter Property="BorderThickness" Value="2,0,0,0" />
                                 <Setter Property="BorderBrush" Value="Transparent" />
                                 <Style.Triggers>
@@ -1200,36 +1273,20 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.View>
-                            <GridView>
-                                <GridView.ColumnHeaderContainerStyle>
-                                    <Style TargetType="GridViewColumnHeader">
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
-                                        <Setter Property="Padding" Value="8,8" />
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                        <Setter Property="VerticalContentAlignment" Value="Center" />
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="GridViewColumnHeader">
-                                                    <Border
-                                                        Background="{TemplateBinding Background}"
-                                                        BorderBrush="{DynamicResource ControlBorderBrush}"
-                                                        BorderThickness="0,0,0,1">
-                                                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </GridView.ColumnHeaderContainerStyle>
-
-                                <GridViewColumn Width="32" Header="">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.CalculatedSettingColumnWidth)}" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.CalculatedValueColumnWidth)}" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.HexColumnWidth)}" />
+                                    </Grid.ColumnDefinitions>
                                             <Path
                                                 x:Name="SettingStateIcon"
+                                                Grid.Column="0"
                                                 Width="14"
                                                 Height="14"
                                                 HorizontalAlignment="Center"
@@ -1237,21 +1294,9 @@
                                                 Fill="{Binding State, Converter={StaticResource StateToSettingIconColorConverter}, Mode=OneWay}"
                                                 Stretch="Uniform"
                                                 ToolTip="{Binding State, Converter={StaticResource StateToTooltipConverter}, Mode=OneWay}" />
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                                    <Setter TargetName="SettingStateIcon" Property="Data" Value="{DynamicResource IconUser}" />
-                                                    <Setter TargetName="SettingStateIcon" Property="Fill" Value="{DynamicResource TextPrimaryBrush}" />
-                                                    <Setter TargetName="SettingStateIcon" Property="ToolTip" Value="User-modified Setting" />
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
 
-                                <GridViewColumn Width="32" Header="">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
                                             <Button
+                                                Grid.Column="1"
                                                 Width="20"
                                                 Height="20"
                                                 Padding="0"
@@ -1269,153 +1314,64 @@
                                                     Fill="{Binding IsFavorite, Converter={StaticResource FavoriteToBrushConverter}, Mode=OneWay}"
                                                     Stretch="Uniform" />
                                             </Button>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
 
-                                <GridViewColumn
-                                    Width="450"
-                                    behaviors:GridViewColumnResizeBehavior.MinWidth="320"
-                                    behaviors:GridViewColumnResizeBehavior.StarWidth="1"
-                                    Header="SETTING">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
                                             <TextBlock
                                                 x:Name="SettingNameText"
+                                                Grid.Column="2"
                                                 Margin="12,0"
                                                 VerticalAlignment="Center"
                                                 Foreground="{Binding State, Converter={StaticResource StateToSettingIconColorConverter}, Mode=OneWay}"
                                                 Text="{Binding DisplayName, Mode=OneWay}"
                                                 ToolTip="{Binding SettingIdHex, Mode=OneWay}"
                                                 ToolTipService.IsEnabled="{Binding DataContext.IsDevMode, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                                    <Setter TargetName="SettingNameText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
+                                    <Grid Grid.Column="3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            x:Name="ValueEditorAnchor"
+                                            Grid.Column="0"
+                                            Margin="-2,-1,4,-1"
+                                            Background="Transparent" />
+                                        <ContentControl
+                                            x:Name="ValueEditorHost"
+                                            Grid.Column="0"
+                                            Margin="-2,-1,4,-1"
+                                            Visibility="Collapsed" />
+                                        <TextBlock
+                                            x:Name="DisplayText"
+                                            Grid.Column="0"
+                                            Margin="12,0"
+                                            VerticalAlignment="Center"
+                                            Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
+                                            Text="{Binding SelectedValue, Mode=OneWay}"
+                                            TextWrapping="NoWrap" />
+                                        <Button
+                                            x:Name="RestoreButton"
+                                            Grid.Column="1"
+                                            Width="28"
+                                            Height="28"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.ResetValueCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            ToolTip="Reset setting to default value"
+                                            Visibility="Collapsed">
+                                            <Path
+                                                x:Name="RestoreButtonIcon"
+                                                Width="14"
+                                                Height="14"
+                                                Data="{StaticResource IconRestore}"
+                                                Fill="{StaticResource NvidiaGreenBrush}"
+                                                Stretch="Uniform" />
+                                        </Button>
+                                    </Grid>
 
-                                <GridViewColumn
-                                    Width="450"
-                                    behaviors:GridViewColumnResizeBehavior.MinWidth="320"
-                                    behaviors:GridViewColumnResizeBehavior.StarWidth="1"
-                                    Header="VALUE">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <DataTemplate.Resources>
-                                                <DataTemplate x:Key="SettingValueDisplayTemplate">
-                                                    <TextBlock
-                                                        x:Name="DisplayText"
-                                                        Margin="12,0"
-                                                        VerticalAlignment="Center"
-                                                        Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
-                                                        Text="{Binding SelectedValue, Mode=OneWay}"
-                                                        TextWrapping="NoWrap" />
-                                                    <DataTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                                            <Setter TargetName="DisplayText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                                        </DataTrigger>
-                                                    </DataTemplate.Triggers>
-                                                </DataTemplate>
-                                                <DataTemplate x:Key="SettingValueEditTemplate">
-                                                    <controls:SearchableComboBox
-                                                        Margin="-2,-1,4,-1"
-                                                        Padding="8,4"
-                                                        HorizontalAlignment="Stretch"
-                                                        behaviors:SettingValueValidationBehavior.Enabled="True"
-                                                        Cursor=""
-                                                        DeferSelectionUntilCommit="True"
-                                                        IsEditable="True"
-                                                        ItemsSource="{Binding ValueNameItems, Mode=OneWay}"
-                                                        MaxDropDownHeight="400"
-                                                        Placeholder="Search values..."
-                                                        PreserveSelectionOnKeyboardFocus="True"
-                                                        SyncSelectedItemToText="False"
-                                                        Text="{Binding SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                        Validation.ErrorTemplate="{x:Null}">
-                                                        <controls:SearchableComboBox.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <Path
-                                                                        Width="12"
-                                                                        Height="12"
-                                                                        Margin="0,0,8,0"
-                                                                        Data="{Binding Source, Converter={StaticResource SettingMetaSourceToIconConverter}, Mode=OneWay}"
-                                                                        Fill="{DynamicResource TextSecondaryBrush}"
-                                                                        Stretch="Uniform" />
-                                                                    <TextBlock
-                                                                        Text="{Binding ValueName, Mode=OneWay}"
-                                                                        TextTrimming="CharacterEllipsis"
-                                                                        TextWrapping="NoWrap" />
-                                                                </StackPanel>
-                                                            </DataTemplate>
-                                                        </controls:SearchableComboBox.ItemTemplate>
-                                                    </controls:SearchableComboBox>
-                                                </DataTemplate>
-                                            </DataTemplate.Resources>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <ContentControl
-                                                    x:Name="ValueContent"
-                                                    Grid.Column="0"
-                                                    Content="{Binding}"
-                                                    ContentTemplate="{StaticResource SettingValueDisplayTemplate}" />
-                                                <!--  Reset Button  -->
-                                                <Button
-                                                    x:Name="RestoreButton"
-                                                    Grid.Column="1"
-                                                    Width="28"
-                                                    Height="28"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding DataContext.ResetValueCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource IconButtonStyle}"
-                                                    ToolTip="Reset setting to default value"
-                                                    Visibility="Collapsed">
-                                                    <Path
-                                                        x:Name="RestoreButtonIcon"
-                                                        Width="14"
-                                                        Height="14"
-                                                        Data="{DynamicResource IconRestore}"
-                                                        Fill="{DynamicResource NvidiaGreenBrush}"
-                                                        Stretch="Uniform" />
-                                                </Button>
-                                            </Grid>
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
-                                                    <Setter TargetName="ValueContent" Property="ContentTemplate" Value="{StaticResource SettingValueEditTemplate}" />
-                                                </DataTrigger>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding IsUserDefined}" Value="True" />
-                                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True" />
-                                                        <Condition Binding="{Binding IsModified}" Value="False" />
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
-                                                    <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset setting to NVIDIA default value" />
-                                                    <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{DynamicResource IconNvidia}" />
-                                                </MultiDataTrigger>
-                                                <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                                    <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
-                                                    <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset unsaved change" />
-                                                    <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{DynamicResource IconRestore}" />
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-
-                                <GridViewColumn Width="200" Header="HEX">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
                                             <TextBlock
                                                 x:Name="HexValueText"
+                                                Grid.Column="4"
                                                 Margin="12,0,0,0"
                                                 VerticalAlignment="Center"
                                                 FontFamily="Consolas"
@@ -1423,31 +1379,58 @@
                                                 Text="{Binding ValueRaw, Mode=OneWay}"
                                                 TextTrimming="CharacterEllipsis"
                                                 ToolTip="{Binding ValueRaw, Mode=OneWay}" />
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsModified}" Value="True">
-                                                    <Setter TargetName="HexValueText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsModified}" Value="True">
+                                        <Setter TargetName="SettingStateIcon" Property="Data" Value="{StaticResource IconUser}" />
+                                        <Setter TargetName="SettingStateIcon" Property="Fill" Value="{DynamicResource TextPrimaryBrush}" />
+                                        <Setter TargetName="SettingStateIcon" Property="ToolTip" Value="User-modified Setting" />
+                                        <Setter TargetName="SettingNameText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                        <Setter TargetName="DisplayText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                        <Setter TargetName="HexValueText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                        <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset unsaved change" />
+                                        <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{StaticResource IconRestore}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                        <Setter TargetName="DisplayText" Property="Visibility" Value="Hidden" />
+                                        <Setter TargetName="ValueEditorHost" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsUserDefined}" Value="True" />
+                                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True" />
+                                            <Condition Binding="{Binding IsModified}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset setting to NVIDIA default value" />
+                                        <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{StaticResource IconNvidia}" />
+                                    </MultiDataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
 
-                        <ListView.GroupStyle>
+                        <ListBox.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.Panel>
                                     <ItemsPanelTemplate>
-                                        <VirtualizingStackPanel />
+                                        <VirtualizingStackPanel
+                                            IsItemsHost="True"
+                                            VirtualizingPanel.IsVirtualizing="True"
+                                            VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                            VirtualizingPanel.ScrollUnit="Pixel"
+                                            VirtualizingPanel.VirtualizationMode="Recycling" />
                                     </ItemsPanelTemplate>
                                 </GroupStyle.Panel>
                                 <GroupStyle.ContainerStyle>
                                     <Style BasedOn="{StaticResource ListViewGroupHeaderStyle}" TargetType="GroupItem" />
                                 </GroupStyle.ContainerStyle>
                             </GroupStyle>
-                        </ListView.GroupStyle>
-                    </ListView>
+                        </ListBox.GroupStyle>
+                        </ListBox>
+                    </Grid>
                 </Grid>
+
 
                 <!--  Setting Description  -->
                 <Border

@@ -1733,7 +1733,7 @@ When any driver flags are set HDR will be applied via driver instead of through 
 			<GroupName>07 - System, Memory and Compute</GroupName>
 			<Description>Default Size Limit value for most of the whitelisted games is '1GB', some games MAY benefit of a higher size bar.</Description>
 			<AlternateNames>ReBAR - Size Limit, Resizable Bar - Size Limit</AlternateNames>
-			<DataType>BINARY</DataType>
+			<DataType>QWORD</DataType>
 			<SettingValues>
 				<CustomSettingValue>
 					<UserfriendlyName>200MB</UserfriendlyName>

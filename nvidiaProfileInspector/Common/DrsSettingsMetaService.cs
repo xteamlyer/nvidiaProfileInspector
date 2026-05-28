@@ -22,6 +22,7 @@ namespace nvidiaProfileInspector.Common
         private List<MetaServiceItem> MetaServices = new List<MetaServiceItem>();
 
         private Dictionary<uint, SettingMeta> settingMetaCache = new Dictionary<uint, SettingMeta>();
+        private Dictionary<Tuple<uint, SettingViewMode>, SettingMeta> postProcessedSettingMetaCache = new Dictionary<Tuple<uint, SettingViewMode>, SettingMeta>();
 
         public DrsSettingsMetaService(CustomSettingNames customSettings, CustomSettingNames referenceSettings = null)
         {
@@ -34,6 +35,7 @@ namespace nvidiaProfileInspector.Common
         public void ResetMetaCache(bool initOnly = false)
         {
             settingMetaCache = new Dictionary<uint, SettingMeta>();
+            postProcessedSettingMetaCache = new Dictionary<Tuple<uint, SettingViewMode>, SettingMeta>();
             MetaServices = new List<MetaServiceItem>();
 
             CustomMeta = new CustomSettingMetaService(_customSettings);
@@ -124,6 +126,18 @@ namespace nvidiaProfileInspector.Common
             foreach (var service in MetaServices.OrderBy(x => x.Service.Source))
             {
                 var settingDefault = service.Service.GetDwordDefaultValue(settingId);
+                if (settingDefault != null)
+                    return settingDefault.Value;
+            }
+
+            return 0;
+        }
+
+        private ulong GetQwordDefaultValue(uint settingId)
+        {
+            foreach (var service in MetaServices.OrderBy(x => x.Service.Source))
+            {
+                var settingDefault = service.Service.GetQwordDefaultValue(settingId);
                 if (settingDefault != null)
                     return settingDefault.Value;
             }
@@ -245,6 +259,34 @@ namespace nvidiaProfileInspector.Common
             return result;
         }
 
+        private List<SettingValue<ulong>> GetQwordValues(uint settingId)
+        {
+            var result = new List<SettingValue<ulong>>();
+
+            foreach (var service in MetaServices.OrderByDescending(x => x.ValueNamePrio))
+            {
+                result = MergeSettingValues(result, service.Service.GetQwordValues(settingId));
+            }
+
+            if (result != null)
+            {
+                result = (from v in result.Where(x => 1 == 1
+                              && !x.ValueName.EndsWith("_NUM")
+                              && !x.ValueName.EndsWith("_MASK")
+                              && !x.ValueName.EndsWith("_MIN")
+                              && !x.ValueName.EndsWith("_MAX")
+                              )
+                          group v by v.ValueName into g
+                          select g.First(t => t.ValueName == g.Key))
+                            .OrderBy(v => v.ValueSource)
+                            .ThenBy(v => v.ValuePos)
+                            .ThenBy(v => v.ValueName).ToList();
+
+            }
+
+            return result;
+        }
+
         public List<uint> GetSettingIds(SettingViewMode viewMode)
         {
             var settingIds = new List<uint>();
@@ -329,6 +371,10 @@ namespace nvidiaProfileInspector.Common
                     settingType == NVDRS_SETTING_TYPE.NVDRS_DWORD_TYPE
                     ? GetDwordDefaultValue(settingId) : 0,
 
+                DefaultQwordValue =
+                    settingType == NVDRS_SETTING_TYPE.NVDRS_QWORD_TYPE
+                    ? GetQwordDefaultValue(settingId) : 0,
+
                 DefaultStringValue =
                     settingType == NVDRS_SETTING_TYPE.NVDRS_WSTRING_TYPE
                     ? GetStringDefaultValue(settingId) : null,
@@ -340,6 +386,10 @@ namespace nvidiaProfileInspector.Common
                 DwordValues =
                     settingType == NVDRS_SETTING_TYPE.NVDRS_DWORD_TYPE
                     ? GetDwordValues(settingId) : null,
+
+                QwordValues =
+                    settingType == NVDRS_SETTING_TYPE.NVDRS_QWORD_TYPE
+                    ? GetQwordValues(settingId) : null,
 
                 StringValues =
                     settingType == NVDRS_SETTING_TYPE.NVDRS_WSTRING_TYPE
@@ -355,9 +405,14 @@ namespace nvidiaProfileInspector.Common
 
         private SettingMeta PostProcessMeta(uint settingId, SettingMeta settingMeta, SettingViewMode viewMode)
         {
+            var cacheKey = Tuple.Create(settingId, viewMode);
+            if (postProcessedSettingMetaCache.TryGetValue(cacheKey, out var cachedMeta))
+                return cachedMeta;
+
             var newMeta = new SettingMeta()
             {
                 DefaultDwordValue = settingMeta.DefaultDwordValue,
+                DefaultQwordValue = settingMeta.DefaultQwordValue,
                 DefaultStringValue = settingMeta.DefaultStringValue,
                 DefaultBinaryValue = settingMeta.DefaultBinaryValue,
                 SettingName = settingMeta.SettingName,
@@ -381,6 +436,12 @@ namespace nvidiaProfileInspector.Common
                     .Where(x => allowedSourcesForViewMode.Contains(x.ValueSource)).ToList();
             }
 
+            if (settingMeta.QwordValues != null)
+            {
+                newMeta.QwordValues = settingMeta.QwordValues
+                    .Where(x => allowedSourcesForViewMode.Contains(x.ValueSource)).ToList();
+            }
+
             if (settingMeta.StringValues != null)
             {
                 newMeta.StringValues = settingMeta.StringValues
@@ -393,6 +454,7 @@ namespace nvidiaProfileInspector.Common
                     .Where(x => allowedSourcesForViewMode.Contains(x.ValueSource)).ToList();
             }
 
+            postProcessedSettingMetaCache.Add(cacheKey, newMeta);
             return newMeta;
         }
 
@@ -447,7 +509,7 @@ namespace nvidiaProfileInspector.Common
                 refMeta != null && ((CustomSettingMetaService)refMeta.Service).IsSettingHidden(settingId);
         }
 
-        private string GetDescription(uint settingId)
+        public string GetDescription(uint settingId)
         {
             var csn = MetaServices.FirstOrDefault(m => m.Service.Source == SettingMetaSource.CustomSettings);
             var csnDescription = csn != null ? ((CustomSettingMetaService)csn.Service).GetDescription(settingId) ?? "" : "";
