@@ -44,7 +44,6 @@ namespace nvidiaProfileInspector.UI.ViewModels
         private string _applicationsText = "";
         private string _settingDescription = "";
         private string _scanStatus = "";
-        private bool _showScannedUnknownSettings;
         private bool _isDevMode;
         private int _scanProgress;
         private bool _isScanning;
@@ -52,7 +51,8 @@ namespace nvidiaProfileInspector.UI.ViewModels
         private UpdateRelease _latestAvailableRelease;
         private readonly AppUpdateService _updateService = new AppUpdateService();
         private SettingItemViewModel _selectedSetting;
-        private ListCollectionView _groupedSettingsView;
+        private readonly BulkObservableCollection<object> _settingsViewItems = new BulkObservableCollection<object>();
+        private HashSet<string> _hiddenSettingGroups;
         private CancellationTokenSource _scanCancellationTokenSource;
         private int _filterTypeIndex;
         private bool _isInitializing;
@@ -123,12 +123,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 Settings.Add(item);
             }
 
-            if (_groupedSettingsView != null)
-            {
-                _groupedSettingsView = new ListCollectionView(Settings);
-                _groupedSettingsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SettingItemViewModel.GroupName)));
-                _groupedSettingsView.Filter = FilterPredicate;
-            }
+            RebuildSettingsView();
 
             InitializeCommands();
         }
@@ -208,16 +203,6 @@ namespace nvidiaProfileInspector.UI.ViewModels
         {
             get => _statusBarText;
             set => SetProperty(ref _statusBarText, value, nameof(StatusBarText));
-        }
-
-        public bool ShowScannedUnknownSettings
-        {
-            get => _showScannedUnknownSettings;
-            set
-            {
-                if (SetProperty(ref _showScannedUnknownSettings, value, nameof(ShowScannedUnknownSettings)))
-                    RefreshCurrentProfileCommand.Execute(null);
-            }
         }
 
         public bool IsDevMode
@@ -404,7 +389,12 @@ namespace nvidiaProfileInspector.UI.ViewModels
         public bool IsWindows10 => !_isWindows11;
         public bool HasPendingChanges => Settings.Any(x => x.IsModified);
 
-        public ListCollectionView GroupedSettingsView => _groupedSettingsView;
+        /// <summary>
+        /// Flattened settings view: group headers (<see cref="SettingGroupHeaderViewModel"/>)
+        /// followed by their visible <see cref="SettingItemViewModel"/> rows. Replaces the former
+        /// ListCollectionView grouping so the list virtualizes as a single flat panel.
+        /// </summary>
+        public ObservableCollection<object> GroupedSettingsView => _settingsViewItems;
 
         public ObservableCollection<SettingItemViewModel> Settings { get; } = new ObservableCollection<SettingItemViewModel>();
         public ObservableCollection<ModifiedProfileItem> ModifiedProfiles { get; } = new ObservableCollection<ModifiedProfileItem>();
@@ -592,7 +582,6 @@ namespace nvidiaProfileInspector.UI.ViewModels
         private void LoadSettings()
         {
             var settings = Common.Helper.UserSettings.LoadSettings();
-            _showScannedUnknownSettings = settings.ShowScannedUnknownSettings;
             _filterTypeIndex = settings.SettingsFilterMode >= 0
                 ? settings.SettingsFilterMode
                 : 0;
@@ -630,7 +619,6 @@ namespace nvidiaProfileInspector.UI.ViewModels
             settings.WindowHeight = (int)height;
             settings.WindowState = state;
             settings.SettingsFilterMode = _filterTypeIndex;
-            settings.ShowScannedUnknownSettings = _showScannedUnknownSettings;
 
             if (NvapiDrsWrapper.Instance.IsMockMode)
                 settings.Win11BackdropMode = NvapiDrsWrapper.Instance.GetMockWin11BackdropMode();
@@ -651,18 +639,14 @@ namespace nvidiaProfileInspector.UI.ViewModels
 
         private void OnFilterTextChanged()
         {
-            if (_groupedSettingsView != null)
-            {
-                _groupedSettingsView.Filter = FilterPredicate;
-                //_groupedSettingsView.Refresh();
-            }
+            RebuildSettingsView();
         }
 
         private bool FilterPredicate(object obj)
         {
             if (obj is SettingItemViewModel item)
             {
-                if (_filterTypeIndex == 2 && !item.IsUserDefined && !item.IsModified)
+                if (_filterTypeIndex == 3 && !item.IsUserDefined && !item.IsModified)
                     return false;
 
                 if (string.IsNullOrWhiteSpace(_filterText))
@@ -680,6 +664,72 @@ namespace nvidiaProfileInspector.UI.ViewModels
                     return true;
             }
             return false;
+        }
+
+        private HashSet<string> GetHiddenSettingGroups()
+        {
+            if (_hiddenSettingGroups == null)
+            {
+                var stored = UserSettings.LoadSettings()?.HiddenSettingGroups;
+                _hiddenSettingGroups = stored != null
+                    ? new HashSet<string>(stored)
+                    : new HashSet<string>();
+            }
+            return _hiddenSettingGroups;
+        }
+
+        /// <summary>
+        /// Projects the sorted (and filtered) settings into the flat view collection:
+        /// one header item per group followed by its rows when the group is expanded.
+        /// Published as a single Reset so the list rebuilds at most one viewport of containers.
+        /// </summary>
+        private void RebuildSettingsView()
+        {
+            var hiddenGroups = GetHiddenSettingGroups();
+            var viewItems = new List<object>(Settings.Count + 64);
+
+            SettingGroupHeaderViewModel currentHeader = null;
+            foreach (var item in Settings)
+            {
+                if (!FilterPredicate(item))
+                    continue;
+
+                var groupName = item.GroupNameForDisplay ?? "";
+                if (currentHeader == null || !string.Equals(currentHeader.Name, groupName, StringComparison.Ordinal))
+                {
+                    currentHeader = new SettingGroupHeaderViewModel(groupName, !hiddenGroups.Contains(groupName), OnGroupExpandedChanged);
+                    viewItems.Add(currentHeader);
+                }
+
+                if (currentHeader.IsExpanded)
+                    viewItems.Add(item);
+            }
+
+            _settingsViewItems.ReplaceAll(viewItems);
+        }
+
+        private void OnGroupExpandedChanged(SettingGroupHeaderViewModel header)
+        {
+            var hiddenGroups = GetHiddenSettingGroups();
+            if (header.IsExpanded)
+                hiddenGroups.Remove(header.Name);
+            else
+                hiddenGroups.Add(header.Name);
+
+            // Groups without a name are runtime-only; everything else is persisted like before.
+            if (!string.IsNullOrEmpty(header.Name))
+            {
+                var settings = UserSettings.LoadSettings();
+                if (settings != null)
+                {
+                    settings.HiddenSettingGroups.Remove(header.Name);
+                    if (!header.IsExpanded)
+                        settings.HiddenSettingGroups.Add(header.Name);
+                    settings.SaveSettings();
+                }
+            }
+
+            RebuildSettingsView();
         }
 
         private void OnSelectedSettingChanged()
@@ -707,46 +757,63 @@ namespace nvidiaProfileInspector.UI.ViewModels
             if (item == null)
                 return true;
 
-            if (item.DwordValues != null)
+            // Validate strictly by the item's effective type; the value lists alone are not
+            // a reliable type indicator (any of them may be empty-but-present).
+            switch (item.SettingType)
             {
-                var settingMeta = new SettingMeta { DwordValues = item.DwordValues };
-                if (DrsUtil.TryParseDwordSettingValue(settingMeta, item.SelectedValue, out _))
+                case NVDRS_SETTING_TYPE.NVDRS_DWORD_TYPE:
+                {
+                    var settingMeta = new SettingMeta { DwordValues = item.DwordValues };
+                    if (DrsUtil.TryParseDwordSettingValue(settingMeta, item.SelectedValue, out _))
+                        return true;
+
+                    errorMessage = "Enter a valid DWORD value.";
+                    return false;
+                }
+
+                case NVDRS_SETTING_TYPE.NVDRS_QWORD_TYPE:
+                {
+                    var settingMeta = new SettingMeta { QwordValues = item.QwordValues };
+                    if (DrsUtil.TryParseQwordSettingValue(settingMeta, item.SelectedValue, out _))
+                        return true;
+
+                    errorMessage = "Enter a valid QWORD value.";
+                    return false;
+                }
+
+                case NVDRS_SETTING_TYPE.NVDRS_BINARY_TYPE:
+                {
+                    var settingMeta = new SettingMeta { BinaryValues = item.BinaryValues };
+                    if (DrsUtil.ParseBinarySettingValue(settingMeta, item.SelectedValue) != null)
+                        return true;
+
+                    errorMessage = "Enter a valid binary value.";
+                    return false;
+                }
+
+                default:
+                    // String settings accept free text.
                     return true;
-
-                errorMessage = "Enter a valid DWORD value.";
-                return false;
             }
-
-            if (item.QwordValues != null)
-            {
-                var settingMeta = new SettingMeta { QwordValues = item.QwordValues };
-                if (DrsUtil.TryParseQwordSettingValue(settingMeta, item.SelectedValue, out _))
-                    return true;
-
-                errorMessage = "Enter a valid QWORD value.";
-                return false;
-            }
-
-            if (item.BinaryValues != null)
-            {
-                var settingMeta = new SettingMeta { BinaryValues = item.BinaryValues };
-                if (DrsUtil.ParseBinarySettingValue(settingMeta, item.SelectedValue) != null)
-                    return true;
-
-                errorMessage = "Enter a valid binary value.";
-                return false;
-            }
-
-            return true;
         }
 
+        // Filter dropdown indices:
+        //   0 = Common only, 1 = Common + Driver, 2 = All Settings, 3 = Modified Only.
         private SettingViewMode GetSettingViewMode()
         {
-            if (_filterTypeIndex == 0)
-                return SettingViewMode.CustomSettingsOnly;
-            if (_showScannedUnknownSettings)
-                return SettingViewMode.IncludeScannedSetttings;
-            return SettingViewMode.Normal;
+            switch (_filterTypeIndex)
+            {
+                case 0:
+                    return SettingViewMode.CommonOnly;
+                case 2:
+                    return SettingViewMode.AllSettings;
+                // "Modified Only" reuses the common + driver source set and narrows it
+                // down to modified/user-defined items via FilterPredicate.
+                case 1:
+                case 3:
+                default:
+                    return SettingViewMode.CommonAndDriver;
+            }
         }
 
         private async void RefreshAll()
@@ -825,7 +892,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
                     continue;
 
                 var vm = new SettingItemViewModel(item);
-                var meta = _metaService.GetSettingMeta(item.SettingId, GetSettingViewMode());
+                var meta = _metaService.GetSettingMeta(item.SettingId);
                 vm.DwordValues = meta?.DwordValues;
                 vm.QwordValues = meta?.QwordValues;
                 vm.StringValues = meta?.StringValues;
@@ -852,19 +919,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
 
             Settings.IncrementalPatchSettingsListOrdered(sortedSettings, (s1, s2) => s1.SettingId == s2.SettingId);
 
-            if (_groupedSettingsView == null)
-            {
-                _groupedSettingsView = new ListCollectionView(Settings);
-                _groupedSettingsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(SettingItemViewModel.GroupNameForDisplay)));
-                _groupedSettingsView.Filter = FilterPredicate;
-                OnPropertyChanged(nameof(GroupedSettingsView));
-            }
-            else
-            {
-                _groupedSettingsView.Filter = FilterPredicate;
-                OnPropertyChanged(nameof(GroupedSettingsView));
-            }
-
+            RebuildSettingsView();
 
             for (var i = 0; i < Settings.Count; i++)
             {
@@ -1227,7 +1282,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             }
         }
 
-        public string ImportFiles(IEnumerable<string> filePaths)
+        public string ImportFiles(IEnumerable<string> filePaths, ProfileImportMode mode = ProfileImportMode.Replace)
         {
             try
             {
@@ -1237,8 +1292,9 @@ namespace nvidiaProfileInspector.UI.ViewModels
                     .Select(Path.GetFullPath)
                     .Distinct(StringComparer.InvariantCultureIgnoreCase)
                     .ToArray();
-                var report = _importService.ImportProfiles(normalizedFiles);
+                var report = _importService.ImportProfiles(normalizedFiles, mode);
 
+                RefreshProfilesCombo(_currentProfile);
                 RefreshCurrentProfile();
                 return report ?? "";
             }
@@ -1431,12 +1487,6 @@ namespace nvidiaProfileInspector.UI.ViewModels
 
         public void ReorderSettingsWithPosition(bool targetIsFavorit)
         {
-            if (!targetIsFavorit)
-            {
-                _groupedSettingsView.IsLiveGrouping = false;
-                _groupedSettingsView.IsLiveFiltering = false;
-            }
-
             var sortedSettings = Settings
                 .OrderByDescending(x => x.IsFavorite)
                 .ThenBy(x => string.IsNullOrEmpty(x.GroupNameForDisplay) ? 1 : 0)
@@ -1446,11 +1496,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
 
             Settings.IncrementalPatchSettingsListOrdered(sortedSettings, (s1, s2) => s1.SettingId == s2.SettingId);
 
-            if (!targetIsFavorit)
-            {
-                _groupedSettingsView.IsLiveGrouping = true;
-                _groupedSettingsView.IsLiveFiltering = true;
-            }
+            RebuildSettingsView();
         }
 
         private void ToggleAppearanceMenu()

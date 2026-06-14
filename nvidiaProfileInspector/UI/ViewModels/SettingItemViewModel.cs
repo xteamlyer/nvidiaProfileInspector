@@ -2,6 +2,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
 {
     using nvidiaProfileInspector.Common;
     using nvidiaProfileInspector.Common.Meta;
+    using nvidiaProfileInspector.Native.NVAPI2;
     using System.Collections.Generic;
     using System.Linq;
 
@@ -118,7 +119,11 @@ namespace nvidiaProfileInspector.UI.ViewModels
         {
         }
 
+        // Discriminator shared with SettingGroupHeaderViewModel for the flattened settings list.
+        public bool IsGroupHeader => false;
+
         public uint SettingId => _item.SettingId;
+        public NVDRS_SETTING_TYPE SettingType => _item.SettingType;
         public string SettingIdHex => string.Format("0x{0:X8}", _item.SettingId);
         public string SettingText => _item.SettingText;
         public string ValueText => _item.ValueText;
