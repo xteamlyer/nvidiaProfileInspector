@@ -70,6 +70,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
         private bool _showActiveFromDisabledSources = true;
         private bool _mergeDistinctValues = true;
         private bool _addPredefinedAppListToCommon;
+        private bool _addRawValueToCommon;
         private bool _allowMetaFromInactiveSources = true;
         private bool _isFilterMenuOpen;
         private DateTime _filterMenuClosedAt = DateTime.MinValue;
@@ -271,6 +272,12 @@ namespace nvidiaProfileInspector.UI.ViewModels
         {
             get => _addPredefinedAppListToCommon;
             set { if (SetProperty(ref _addPredefinedAppListToCommon, value, nameof(AddPredefinedAppListToCommon))) OnSourceFilterChanged(); }
+        }
+
+        public bool AddRawValueToCommon
+        {
+            get => _addRawValueToCommon;
+            set { if (SetProperty(ref _addRawValueToCommon, value, nameof(AddRawValueToCommon))) OnSourceFilterChanged(); }
         }
 
         // Setting-source sub-option: allow the name and description to come from inactive sources.
@@ -756,6 +763,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             _showActiveFromDisabledSources = settings.ShowActiveFromDisabledSources;
             _mergeDistinctValues = settings.MergeDistinctValues;
             _addPredefinedAppListToCommon = settings.AddPredefinedAppListToCommon;
+            _addRawValueToCommon = settings.AddRawValueToCommon;
             _allowMetaFromInactiveSources = settings.AllowMetaFromInactiveSources;
 
             ApplySourceFilters();
@@ -1629,10 +1637,13 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 return;
 
             var selectedSettingId = _selectedSetting.SettingId;
+            var settingName = _selectedSetting.DisplayName;
 
             bool removeFromModified;
             _settingService.ResetValue(_currentProfile, selectedSettingId, out removeFromModified);
             RefreshCurrentProfile();
+
+            ShowSnackbar($"\"{settingName}\" restored to NVIDIA default.", "Success");
         }
 
         private void CopySettingsToClipboard()
@@ -1742,6 +1753,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
                 GetEnabledValueSources().ToList(),
                 _mergeDistinctValues,
                 _addPredefinedAppListToCommon,
+                _addRawValueToCommon,
                 _allowMetaFromInactiveSources);
         }
 
@@ -1789,6 +1801,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             settings.ShowActiveFromDisabledSources = _showActiveFromDisabledSources;
             settings.MergeDistinctValues = _mergeDistinctValues;
             settings.AddPredefinedAppListToCommon = _addPredefinedAppListToCommon;
+            settings.AddRawValueToCommon = _addRawValueToCommon;
             settings.AllowMetaFromInactiveSources = _allowMetaFromInactiveSources;
             settings.SaveSettings();
         }
@@ -1810,6 +1823,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             _showActiveFromDisabledSources = true;
             _mergeDistinctValues = true;
             _addPredefinedAppListToCommon = false;
+            _addRawValueToCommon = false;
             _allowMetaFromInactiveSources = true;
 
             OnPropertyChanged(nameof(SettingSourceCommon));
@@ -1826,6 +1840,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             OnPropertyChanged(nameof(ShowActiveFromDisabledSources));
             OnPropertyChanged(nameof(MergeDistinctValues));
             OnPropertyChanged(nameof(AddPredefinedAppListToCommon));
+            OnPropertyChanged(nameof(AddRawValueToCommon));
             OnPropertyChanged(nameof(AllowMetaFromInactiveSources));
 
             ApplySourceFilters();
