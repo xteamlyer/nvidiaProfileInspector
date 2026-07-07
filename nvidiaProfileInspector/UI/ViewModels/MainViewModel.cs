@@ -21,6 +21,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
     using System.Windows;
     using System.Windows.Data;
     using System.Windows.Input;
+    using System.Windows.Media;
 
     public static class MessageBoxEx
     {
@@ -788,6 +789,7 @@ namespace nvidiaProfileInspector.UI.ViewModels
             _allowMetaFromInactiveSources = settings.AllowMetaFromInactiveSources;
             _showSettingIdInName = settings.ShowSettingIdInName;
             SettingItemViewModel.ShowSettingIdInName = _showSettingIdInName;
+            ApplySettingsFontFamily();
 
             ApplySourceFilters();
 
@@ -1708,8 +1710,20 @@ namespace nvidiaProfileInspector.UI.ViewModels
         private void ApplySettingIdInName()
         {
             SettingItemViewModel.ShowSettingIdInName = _showSettingIdInName;
+            ApplySettingsFontFamily();
             foreach (var setting in Settings)
                 setting.RefreshDisplayName();
+        }
+
+        // Monospace column alignment only makes sense once the setting id is shown in the
+        // list, so the font switches together with that option (settings list + value list).
+        private void ApplySettingsFontFamily()
+        {
+            if (Application.Current == null)
+                return;
+
+            Application.Current.Resources["SettingsFontFamily"] =
+                new FontFamily(_showSettingIdInName ? "Consolas" : "Segoe UI Variable Text, Segoe UI");
         }
 
         private void ToggleDevMode()

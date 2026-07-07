@@ -34,7 +34,7 @@
                     Fill="{DynamicResource TextSecondaryBrush}"
                     Stretch="Uniform" />
                 <TextBlock
-                    FontFamily="Consolas"
+                    FontFamily="{DynamicResource SettingsFontFamily}"
                     Text="{Binding ValueName, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
                     TextWrapping="NoWrap" />
@@ -43,7 +43,7 @@
 
         <controls:SearchableComboBox x:Key="SharedValueEditorResource"
                                      Padding="8,4"
-                                     FontFamily="Consolas"
+                                     FontFamily="{DynamicResource SettingsFontFamily}"
                                      HorizontalAlignment="Stretch"
                                      Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
                                      behaviors:SettingValueValidationBehavior.Enabled="True"
@@ -1532,7 +1532,7 @@
                     <Grid Grid.Row="1">
                         <ListBox
                             x:Name="SettingsListView"
-                            FontFamily="Consolas"
+                            FontFamily="{DynamicResource SettingsFontFamily}"
                             behaviors:GridViewColumnResizeBehavior.EnableStarSizing="True"
                             behaviors:GridViewColumnResizeBehavior.HexColumnWidth="200"
                             behaviors:GridViewColumnResizeBehavior.SettingColumnMinWidth="320"
