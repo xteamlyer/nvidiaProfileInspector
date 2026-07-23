@@ -16,7 +16,9 @@ namespace nvidiaProfileInspector
     using System.Text;
     using System.Threading;
     using System.Windows;
+    using System.Windows.Controls.Primitives;
     using System.Windows.Interop;
+    using System.Windows.Media;
     using System.Windows.Threading;
 
     public partial class App : Application
@@ -55,6 +57,17 @@ namespace nvidiaProfileInspector
                 ActivateRunningInstance();
                 Shutdown();
                 return;
+            }
+
+            if (startupOptions.UseSoftwareRendering)
+            {
+                RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
+            }
+
+            if (startupOptions.DisableTransparency)
+            {
+                Resources["SearchableComboBoxPopupAllowsTransparency"] = false;
+                Resources["SearchableComboBoxPopupAnimation"] = PopupAnimation.None;
             }
 
             ShowStartupSplashScreen();
@@ -318,6 +331,8 @@ namespace nvidiaProfileInspector
                 IsSilentMode = HasArgument(arguments, "-silentImport") || HasArgument(arguments, "-silent"),
                 ExportCustomized = HasArgument(arguments, "-exportCustomized"),
                 UseMockDriver = HasArgument(arguments, "-mock"),
+                UseSoftwareRendering = HasArgument(arguments, "-useSoftwareRendering"),
+                DisableTransparency = HasArgument(arguments, "-disableTransparency"),
                 ImportMode = ParseImportMode(arguments)
             };
         }
@@ -596,6 +611,9 @@ namespace nvidiaProfileInspector
 
             public bool HasImportFiles => NipFiles.Length > 0;
             public bool RequiresSingleInstanceMutex => !CreateCustomSettingNames && !HasImportFiles && !ExportCustomized;
+
+            public bool UseSoftwareRendering { get; set; }
+            public bool DisableTransparency { get; set; }
         }
     }
 }
